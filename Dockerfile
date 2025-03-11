@@ -41,12 +41,23 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     xdg-utils \
     wget \
+    chromium \
     && rm -rf /var/lib/apt/lists/*
+
+# Set environment variable for puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Create app directory and set permissions
 WORKDIR /app
-RUN mkdir -p /app/.wwebjs_auth /app/sessions /app/stickers /app/public && \
-    chown -R node:node /app
+
+# Create required directories
+RUN mkdir -p \
+    /app/.wwebjs_auth \
+    /app/sessions \
+    /app/stickers \
+    /app/public \
+    && chown -R node:node /app
 
 # Switch to non-root user
 USER node
@@ -55,7 +66,7 @@ USER node
 COPY --chown=node:node package*.json ./
 
 # Install dependencies
-RUN npm install --production
+RUN npm install --production --no-optional
 
 # Copy project files with correct ownership
 COPY --chown=node:node . .
