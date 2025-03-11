@@ -17,6 +17,15 @@ let qrCode = null;
 let botStatus = 'Initializing...';
 let lastError = null;
 
+// Fungsi untuk logging
+function logMessage(type, message, error = null) {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] [${type}] ${message}`);
+    if (error) {
+        console.error(`[${timestamp}] [ERROR] `, error);
+    }
+}
+
 // Express routes
 app.get('/', (req, res) => {
     res.render('index', { 
@@ -36,7 +45,7 @@ app.get('/status', (req, res) => {
 
 const port = process.env.PORT || 8080;
 app.listen(port, () => {
-    console.log(`Server berjalan di port ${port}`);
+    logMessage('SERVER', `Server berjalan di port ${port}`);
 });
 
 // Dynamic Commands
@@ -248,10 +257,23 @@ async function handleAdminCommand(msg) {
 
 // Inisialisasi WhatsApp client
 const client = new Client({
-    authStrategy: new LocalAuth(),
+    authStrategy: new LocalAuth({
+        dataPath: path.join(__dirname, '.wwebjs_auth')
+    }),
     puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    }
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu'
+        ]
+    },
+    qrMaxRetries: 5,
+    restartOnAuthFail: true
 });
 
 // Event saat QR code tersedia
@@ -259,9 +281,9 @@ client.on('qr', async (qr) => {
     try {
         qrCode = await qrcode.toDataURL(qr);
         botStatus = 'QR Code siap untuk di-scan';
-        console.log('QR Code telah dibuat, silakan scan!');
+        logMessage('QR', 'QR Code baru telah dibuat');
     } catch (error) {
-        console.error('Error generating QR code:', error);
+        logMessage('ERROR', 'Error generating QR code', error);
         lastError = error.message;
     }
 });
@@ -271,23 +293,39 @@ client.on('ready', () => {
     botStatus = 'Bot WhatsApp sudah siap!';
     qrCode = null;
     lastError = null;
-    console.log(botStatus);
+    logMessage('READY', botStatus);
     loadSchedules();
+});
+
+client.on('authenticated', () => {
+    logMessage('AUTH', 'Bot berhasil diautentikasi');
+});
+
+client.on('auth_failure', (error) => {
+    logMessage('AUTH_FAIL', 'Autentikasi gagal', error);
+    lastError = error.message;
 });
 
 // Event saat menerima pesan
 client.on('message', async msg => {
     try {
+        logMessage('MESSAGE', `Pesan diterima dari ${msg.from}: ${msg.body}`);
+
         // Check for admin commands first
         if (await handleAdminCommand(msg)) {
+            logMessage('ADMIN', `Perintah admin dijalankan: ${msg.body}`);
             return;
         }
 
         const command = msg.body.toLowerCase();
+        logMessage('COMMAND', `Menjalankan perintah: ${command}`);
 
         switch (command) {
             case '!software':
-                await retryOperation(() => msg.reply('https://s.id/softwarepraktikum'), 3, 3000);
+                await retryOperation(() => {
+                    logMessage('REPLY', 'Mengirim link software');
+                    return msg.reply('https://s.id/softwarepraktikum');
+                }, 3, 3000);
                 break;
             case '!template':
                 await retryOperation(() => msg.reply('https://s.id/templatebdX'), 3, 3000);
@@ -346,7 +384,8 @@ client.on('message', async msg => {
                 break;
         }
     } catch (error) {
-        console.error('Error dalam menangani pesan:', error);
+        logMessage('ERROR', 'Error dalam menangani pesan', error);
+        lastError = error.message;
         await msg.reply('Maaf, terjadi kesalahan dalam memproses perintah. Silakan coba lagi.');
     }
 });
@@ -354,8 +393,18 @@ client.on('message', async msg => {
 // Event saat client terputus
 client.on('disconnected', (reason) => {
     botStatus = `Bot terputus: ${reason}`;
-    console.log(botStatus);
+    logMessage('DISCONNECT', botStatus);
+    // Coba reconnect setelah disconnect
+    setTimeout(() => {
+        logMessage('RECONNECT', 'Mencoba menghubungkan kembali...');
+        client.initialize();
+    }, 5000);
 });
 
-// Inisialisasi client
-client.initialize(); 
+// Initialize client with error handling
+try {
+    logMessage('INIT', 'Memulai inisialisasi bot...');
+    client.initialize();
+} catch (error) {
+    logMessage('INIT_ERROR', 'Error saat inisialisasi bot', error);
+} 
