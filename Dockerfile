@@ -66,7 +66,7 @@ USER node
 COPY --chown=node:node package*.json ./
 
 # Install dependencies
-RUN npm install --production --no-optional
+RUN npm install --omit=dev --omit=optional
 
 # Copy project files with correct ownership
 COPY --chown=node:node . .

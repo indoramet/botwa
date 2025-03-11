@@ -5,9 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js",
-    "setup": "node scripts/setup.js",
-    "postinstall": "npm run setup"
+    "dev": "nodemon index.js"
   },
   "keywords": ["whatsapp-bot", "railway", "indonesia"],
   "author": "",
