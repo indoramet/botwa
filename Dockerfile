@@ -43,29 +43,22 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Create app directory and set permissions
 WORKDIR /app
-
-# Create required directories first
-RUN mkdir -p /app/.wwebjs_auth /app/sessions /app/stickers /app/public
-
-# Copy package files
-COPY package*.json ./
-
-# Set npm config to avoid permission issues
-RUN npm config set unsafe-perm true
-
-# Install dependencies with error handling
-RUN npm install --production || (cat /root/.npm/_logs/*-debug.log && exit 1)
-
-# Copy project files
-COPY . .
-
-# Set correct permissions
-RUN chown -R node:node /app
+RUN mkdir -p /app/.wwebjs_auth /app/sessions /app/stickers /app/public && \
+    chown -R node:node /app
 
 # Switch to non-root user
 USER node
+
+# Copy package files with correct ownership
+COPY --chown=node:node package*.json ./
+
+# Install dependencies
+RUN npm install --production
+
+# Copy project files with correct ownership
+COPY --chown=node:node . .
 
 # Expose port
 EXPOSE 8080
