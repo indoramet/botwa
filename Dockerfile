@@ -43,22 +43,32 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
+# Set working directory
 WORKDIR /app
+
+# Create required directories first
+RUN mkdir -p /app/.wwebjs_auth /app/sessions /app/stickers /app/public
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Set npm config to avoid permission issues
+RUN npm config set unsafe-perm true
+
+# Install dependencies with error handling
+RUN npm install --production || (cat /root/.npm/_logs/*-debug.log && exit 1)
 
 # Copy project files
 COPY . .
 
-# Create sessions directory
-RUN mkdir -p /app/sessions
+# Set correct permissions
+RUN chown -R node:node /app
+
+# Switch to non-root user
+USER node
 
 # Expose port
-EXPOSE 3000
+EXPOSE 8080
 
 # Start the bot
 CMD ["npm", "start"] 
