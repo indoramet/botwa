@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot WhatsApp Status</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .qr-container {
+            max-width: 300px;
+            margin: 0 auto;
+        }
+        .status-container {
+            max-width: 600px;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Bot WhatsApp Status</h1>
+            <p class="text-gray-600" id="statusText"><%= botStatus %></p>
+        </div>
+
+        <div class="qr-container bg-white p-4 rounded-lg shadow-lg mb-8" id="qrContainer">
+            <% if (qrCode) { %>
+                <img src="<%= qrCode %>" alt="QR Code" class="w-full">
+                <p class="text-center mt-4 text-sm text-gray-600">Scan QR Code ini dengan WhatsApp Anda</p>
+            <% } else { %>
+                <div class="text-center p-8 text-gray-500">
+                    <% if (botStatus.includes('siap')) { %>
+                        Bot sudah terhubung ✅
+                    <% } else { %>
+                        Menunggu QR Code...
+                    <% } %>
+                </div>
+            <% } %>
+        </div>
+
+        <div class="status-container">
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Informasi Bot</h2>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Status</p>
+                        <p class="mt-1" id="currentStatus"><%= botStatus %></p>
+                    </div>
+                    <% if (lastError) { %>
+                        <div>
+                            <p class="text-sm font-medium text-red-500">Error Terakhir</p>
+                            <p class="mt-1 text-red-600" id="lastError"><%= lastError %></p>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('statusText').textContent = data.status;
+                    document.getElementById('currentStatus').textContent = data.status;
+                    
+                    const qrContainer = document.getElementById('qrContainer');
+                    if (data.qrCode) {
+                        qrContainer.innerHTML = `
+                            <img src="${data.qrCode}" alt="QR Code" class="w-full">
+                            <p class="text-center mt-4 text-sm text-gray-600">Scan QR Code ini dengan WhatsApp Anda</p>
+                        `;
+                    } else if (data.status.includes('siap')) {
+                        qrContainer.innerHTML = `
+                            <div class="text-center p-8 text-gray-500">
+                                Bot sudah terhubung ✅
+                            </div>
+                        `;
+                    }
+
+                    if (data.lastError) {
+                        document.getElementById('lastError').textContent = data.lastError;
+                    }
+                })
+                .catch(console.error);
+        }
+
+        // Update status every 5 seconds
+        setInterval(updateStatus, 5000);
+    </script>
+</body>
+</html> 

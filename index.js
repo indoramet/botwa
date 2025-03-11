@@ -1,5 +1,5 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const qrcode = require('qrcode');
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
@@ -7,12 +7,34 @@ const moment = require('moment');
 const app = express();
 require('dotenv').config();
 
-// Express server untuk keep alive di Railway
+// Middleware
+app.use(express.static('public'));
+app.use(express.json());
+app.set('view engine', 'ejs');
+
+// Global variables for web interface
+let qrCode = null;
+let botStatus = 'Initializing...';
+let lastError = null;
+
+// Express routes
 app.get('/', (req, res) => {
-    res.send('Bot WhatsApp Aktif!');
+    res.render('index', { 
+        qrCode,
+        botStatus,
+        lastError
+    });
 });
 
-const port = process.env.PORT || 3000;
+app.get('/status', (req, res) => {
+    res.json({
+        status: botStatus,
+        qrCode,
+        lastError
+    });
+});
+
+const port = process.env.PORT || 8080;
 app.listen(port, () => {
     console.log(`Server berjalan di port ${port}`);
 });
@@ -233,14 +255,23 @@ const client = new Client({
 });
 
 // Event saat QR code tersedia
-client.on('qr', qr => {
-    qrcode.generate(qr, { small: true });
-    console.log('QR Code telah dibuat, silakan scan!');
+client.on('qr', async (qr) => {
+    try {
+        qrCode = await qrcode.toDataURL(qr);
+        botStatus = 'QR Code siap untuk di-scan';
+        console.log('QR Code telah dibuat, silakan scan!');
+    } catch (error) {
+        console.error('Error generating QR code:', error);
+        lastError = error.message;
+    }
 });
 
 // Event saat client siap
 client.on('ready', () => {
-    console.log('Bot WhatsApp sudah siap!');
+    botStatus = 'Bot WhatsApp sudah siap!';
+    qrCode = null;
+    lastError = null;
+    console.log(botStatus);
     loadSchedules();
 });
 
@@ -322,7 +353,8 @@ client.on('message', async msg => {
 
 // Event saat client terputus
 client.on('disconnected', (reason) => {
-    console.log('Bot terputus:', reason);
+    botStatus = `Bot terputus: ${reason}`;
+    console.log(botStatus);
 });
 
 // Inisialisasi client
