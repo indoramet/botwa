@@ -255,7 +255,7 @@ async function handleAdminCommand(msg) {
     return false;
 }
 
-// Inisialisasi WhatsApp client
+// Inisialisasi WhatsApp client dengan opsi yang diperbarui
 const client = new Client({
     authStrategy: new LocalAuth({
         dataPath: path.join(__dirname, '.wwebjs_auth')
@@ -269,8 +269,10 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--disable-gpu'
-        ]
+            '--disable-gpu',
+            '--disable-software-rasterizer'
+        ],
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium'
     },
     qrMaxRetries: 5,
     restartOnAuthFail: true
@@ -310,51 +312,58 @@ client.on('auth_failure', (error) => {
 client.on('message', async msg => {
     try {
         logMessage('MESSAGE', `Pesan diterima dari ${msg.from}: ${msg.body}`);
-
-        // Check for admin commands first
-        if (await handleAdminCommand(msg)) {
-            logMessage('ADMIN', `Perintah admin dijalankan: ${msg.body}`);
-            return;
-        }
-
+        
         const command = msg.body.toLowerCase();
-        logMessage('COMMAND', `Menjalankan perintah: ${command}`);
+        
+        // Log setiap pesan yang diterima untuk debugging
+        console.log('Pesan masuk:', {
+            from: msg.from,
+            body: msg.body,
+            command: command,
+            isGroup: msg._data.isGroup
+        });
 
+        // Handle commands
         switch (command) {
             case '!software':
-                await retryOperation(() => {
-                    logMessage('REPLY', 'Mengirim link software');
-                    return msg.reply('https://s.id/softwarepraktikum');
-                }, 3, 3000);
+                await msg.reply('https://s.id/softwarepraktikum');
+                logMessage('COMMAND', 'Mengirim link software');
                 break;
             case '!template':
-                await retryOperation(() => msg.reply('https://s.id/templatebdX'), 3, 3000);
+                await msg.reply('https://s.id/templatebdX');
+                logMessage('COMMAND', 'Mengirim link template');
                 break;
             case '!asistensi':
-                await retryOperation(() => msg.reply('Untuk melihat jadwal asistensi gunakan command !asistensi1 sampai !asistensi7 sesuai dengan pertemuan yang ingin dilihat'), 3, 3000);
+                await msg.reply('Untuk melihat jadwal asistensi gunakan command !asistensi1 sampai !asistensi7 sesuai dengan pertemuan yang ingin dilihat');
+                logMessage('COMMAND', 'Mengirim info asistensi');
                 break;
             case '!tugasakhir':
-                await retryOperation(() => msg.reply(dynamicCommands.tugasakhir), 3, 3000);
+                await msg.reply(dynamicCommands.tugasakhir);
+                logMessage('COMMAND', 'Mengirim info tugas akhir');
                 break;
             case '!jadwal':
             case 'kapan praktikum?':
-                await retryOperation(() => msg.reply(dynamicCommands.jadwal), 3, 3000);
+                await msg.reply(dynamicCommands.jadwal);
+                logMessage('COMMAND', 'Mengirim jadwal');
                 break;
             case '!nilai':
             case 'nilai praktikum?':
-                await retryOperation(() => msg.reply(dynamicCommands.nilai), 3, 3000);
+                await msg.reply(dynamicCommands.nilai);
+                logMessage('COMMAND', 'Mengirim info nilai');
                 break;
             case '!sesi':
             case 'sesi praktikum?':
-                await retryOperation(() => msg.reply('Praktikum sesi satu : 15:15 - 16:05\nPraktikum sesi dua : 16:10 - 17:00\nPraktikum sesi tiga : 20:00 - 20:50'), 3, 3000);
+                await msg.reply('Praktikum sesi satu : 15:15 - 16:05\nPraktikum sesi dua : 16:10 - 17:00\nPraktikum sesi tiga : 20:00 - 20:50');
+                logMessage('COMMAND', 'Mengirim info sesi');
                 break;
             case '!laporan':
             case 'bagaimana cara upload laporan?':
-                await retryOperation(() => msg.reply('Untuk mengupload laporan:\n1. ubah file word laporan menjadi pdf\n2. cek link upload laporan sesuai dengan pertemuan ke berapa command contoh !laporan1\n3. klik link upload laporan\n4. upload laporan\n5. Tunggu sampai kelar\nJANGAN SAMPAI MENGUMPULKAN LAPORAN TERLAMBAT -5%!!!'), 3, 3000);
+                await msg.reply('Untuk mengupload laporan:\n1. ubah file word laporan menjadi pdf\n2. cek link upload laporan sesuai dengan pertemuan ke berapa command contoh !laporan1\n3. klik link upload laporan\n4. upload laporan\n5. Tunggu sampai kelar\nJANGAN SAMPAI MENGUMPULKAN LAPORAN TERLAMBAT -5%!!!');
+                logMessage('COMMAND', 'Mengirim info upload laporan');
                 break;
             case '!help':
             case '!bantuan':
-                await retryOperation(() => msg.reply(`Daftar perintah yang tersedia:
+                await msg.reply(`Daftar perintah yang tersedia:
 !jadwal - Informasi jadwal praktikum
 !laporan - Cara upload laporan
 !sesi - Informasi sesi praktikum
@@ -363,30 +372,45 @@ client.on('message', async msg => {
 !asistensi - Informasi jadwal asistensi
 !software - Link download software praktikum
 !template - Link template laporan
-!tugasakhir - Informasi tugas akhir`), 3, 3000);
+!tugasakhir - Informasi tugas akhir`);
+                logMessage('COMMAND', 'Mengirim daftar perintah');
                 break;
             case '!izin':
                 try {
                     await msg.reply('Silahkan izin jika berkendala hadir, dimohon segera hubungi saya');
-                    const sticker = MessageMedia.fromFilePath(path.join(__dirname, 'stickers', 'izin.jpeg'));
-                    await msg.reply(sticker, null, { sendMediaAsSticker: true });
+                    const stickerPath = path.join(__dirname, 'stickers', 'izin.jpeg');
+                    // Check if sticker file exists
+                    try {
+                        await fs.access(stickerPath);
+                        const sticker = MessageMedia.fromFilePath(stickerPath);
+                        await msg.reply(sticker, null, { sendMediaAsSticker: true });
+                        logMessage('COMMAND', 'Mengirim sticker izin');
+                    } catch (error) {
+                        logMessage('ERROR', `Sticker file not found: ${stickerPath}`, error);
+                    }
                 } catch (error) {
-                    console.error('Error mengirim sticker:', error);
-                    msg.reply('❌ Maaf, terjadi kesalahan saat mengirim sticker');
+                    logMessage('ERROR', 'Error mengirim sticker', error);
+                    await msg.reply('❌ Maaf, terjadi kesalahan saat mengirim sticker');
                 }
                 break;
             default:
                 if (command.startsWith('!asistensi') && /^!asistensi[1-7]$/.test(command)) {
-                    await retryOperation(() => msg.reply(dynamicCommands[command.substring(1)]), 3, 3000);
+                    await msg.reply(dynamicCommands[command.substring(1)]);
+                    logMessage('COMMAND', `Mengirim info ${command}`);
                 } else if (command.startsWith('!laporan') && /^!laporan[1-7]$/.test(command)) {
-                    await retryOperation(() => msg.reply(dynamicCommands[command.substring(1)]), 3, 3000);
+                    await msg.reply(dynamicCommands[command.substring(1)]);
+                    logMessage('COMMAND', `Mengirim info ${command}`);
                 }
                 break;
         }
     } catch (error) {
         logMessage('ERROR', 'Error dalam menangani pesan', error);
         lastError = error.message;
-        await msg.reply('Maaf, terjadi kesalahan dalam memproses perintah. Silakan coba lagi.');
+        try {
+            await msg.reply('Maaf, terjadi kesalahan dalam memproses perintah. Silakan coba lagi.');
+        } catch (replyError) {
+            logMessage('ERROR', 'Error saat mengirim pesan error', replyError);
+        }
     }
 });
 
